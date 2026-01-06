@@ -1,0 +1,75 @@
+import { View, Text, StyleSheet, Pressable, Alert as RNAlert } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { fetchDevices, isolateDevice, Device } from '../../constants/api';
+
+export default function DeviceDetail() {
+    const { id } = useLocalSearchParams();
+    const [device, setDevice] = useState<Device | null>(null);
+    const router = useRouter();
+
+    const loadDevice = async () => {
+        const devices = await fetchDevices();
+        const d = devices.find(d => d.id === id);
+        if (d) setDevice(d);
+    };
+
+    useEffect(() => {
+        loadDevice();
+    }, [id]);
+
+    const handleIsolate = async () => {
+        if (!device) return;
+        try {
+            await isolateDevice(device.id);
+            RNAlert.alert("Success", "Device has been isolated and blocked from the network.");
+            loadDevice(); // Refresh
+        } catch (e) {
+            RNAlert.alert("Error", "Failed to isolate device.");
+        }
+    };
+
+    if (!device) return <View style={styles.container}><Text>Loading...</Text></View>;
+
+    return (
+        <View style={styles.container}>
+            <View style={styles.card}>
+                <Text style={styles.title}>{device.device_type}</Text>
+                <Text style={styles.label}>IP Address:</Text>
+                <Text style={styles.value}>{device.ip_address}</Text>
+
+                <Text style={styles.label}>Risk Score:</Text>
+                <Text style={[styles.value, { color: device.risk_score > 5 ? 'red' : 'green' }]}>{device.risk_score}/10</Text>
+
+                <Text style={styles.label}>Status:</Text>
+                <Text style={styles.value}>{device.status}</Text>
+
+                <Text style={styles.label}>ID:</Text>
+                <Text style={styles.value}>{device.id}</Text>
+            </View>
+
+            {device.status !== 'Isolated' && (
+                <Pressable style={styles.isolateButton} onPress={handleIsolate}>
+                    <Text style={styles.buttonText}>ISOLATE DEVICE</Text>
+                </Pressable>
+            )}
+
+            {device.status === 'Isolated' && (
+                <View style={styles.isolatedBadge}>
+                    <Text style={styles.buttonText}>DEVICE IS BLOCKED</Text>
+                </View>
+            )}
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#f2f2f2', padding: 20 },
+    card: { backgroundColor: 'white', padding: 20, borderRadius: 10, elevation: 2, marginBottom: 20 },
+    title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+    label: { color: '#666', marginTop: 10 },
+    value: { fontSize: 18, color: '#333', fontWeight: '500' },
+    isolateButton: { backgroundColor: '#ff4444', padding: 15, borderRadius: 10, alignItems: 'center' },
+    isolatedBadge: { backgroundColor: '#666', padding: 15, borderRadius: 10, alignItems: 'center' },
+    buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 }
+});
