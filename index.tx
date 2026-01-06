@@ -1,0 +1,119 @@
+import { View, Text, StyleSheet, Pressable, RefreshControl, ScrollView } from 'react-native';
+import { Link } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { fetchDevices, fetchAlerts, Device, Alert } from '../constants/api';
+
+export default function Dashboard() {
+    const [devices, setDevices] = useState<Device[]>([]);
+    const [alerts, setAlerts] = useState<Alert[]>([]);
+    const [refreshing, setRefreshing] = useState(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    const loadData = async () => {
+        try {
+            const d = await fetchDevices();
+            const a = await fetchAlerts();
+            setDevices(d);
+            setAlerts(a);
+        } catch (e) {
+            console.error(e);
+            setErrorMsg("Failed to connect to Backend. Check IP & Server.");
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadData();
+        setRefreshing(false);
+    };
+
+    const highRiskCount = devices.filter(d => d.risk_score > 5).length;
+    const recentAlerts = alerts.slice(0, 3);
+
+    return (
+        <ScrollView
+            style={styles.container}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+            <View style={styles.header}>
+                <Text style={styles.title}>System Status</Text>
+                {errorMsg ? (
+                    <View style={[styles.statusBadge, { backgroundColor: '#ff4444' }]}>
+                        <Text style={styles.statusText}>CONNECTION ERROR</Text>
+                    </View>
+                ) : (
+                    <View style={[styles.statusBadge, { backgroundColor: highRiskCount > 0 ? '#ff4444' : '#00C851' }]}>
+                        <Text style={styles.statusText}>{highRiskCount > 0 ? 'THREATS DETECTED' : 'SECURE'}</Text>
+                    </View>
+                )}
+                {errorMsg && <Text style={{ color: 'red', marginTop: 10 }}>{errorMsg}</Text>}
+            </View>
+
+            <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                    <Text style={styles.statNumber}>{devices.length}</Text>
+                    <Text style={styles.statLabel}>Devices</Text>
+                </View>
+                <View style={styles.statCard}>
+                    <Text style={styles.statNumber}>{highRiskCount}</Text>
+                    <Text style={styles.statLabel}>High Risk</Text>
+                </View>
+                <View style={styles.statCard}>
+                    <Text style={styles.statNumber}>{alerts.length}</Text>
+                    <Text style={styles.statLabel}>Alerts</Text>
+                </View>
+            </View>
+
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Quick Actions</Text>
+                <View style={styles.actionRow}>
+                    <Link href="/devices" asChild>
+                        <Pressable style={styles.button}>
+                            <Text style={styles.buttonText}>View All Devices</Text>
+                        </Pressable>
+                    </Link>
+                    <Link href="/alerts" asChild>
+                        <Pressable style={[styles.button, styles.alertButton]}>
+                            <Text style={styles.buttonText}>View Security Alerts</Text>
+                        </Pressable>
+                    </Link>
+                </View>
+            </View>
+
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Recent Alerts</Text>
+                {recentAlerts.map(alert => (
+                    <View key={alert.id} style={styles.alertItem}>
+                        <Text style={styles.alertSeverity}>{alert.severity}</Text>
+                        <Text style={styles.alertDesc}>{alert.description}</Text>
+                    </View>
+                ))}
+            </View>
+        </ScrollView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#f5f5f5', padding: 20 },
+    header: { marginBottom: 20, alignItems: 'center' },
+    title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
+    statusBadge: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, marginTop: 10 },
+    statusText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+    statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+    statCard: { backgroundColor: 'white', padding: 15, borderRadius: 10, width: '30%', alignItems: 'center', elevation: 2 },
+    statNumber: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+    statLabel: { color: '#666' },
+    section: { marginBottom: 20 },
+    sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10, color: '#333' },
+    actionRow: { gap: 10 },
+    button: { backgroundColor: '#2196F3', padding: 15, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
+    alertButton: { backgroundColor: '#FF9800' },
+    buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+    alertItem: { backgroundColor: 'white', padding: 15, borderRadius: 10, marginBottom: 10, borderLeftWidth: 5, borderLeftColor: '#ff4444' },
+    alertSeverity: { color: '#ff4444', fontWeight: 'bold', marginBottom: 5 },
+    alertDesc: { color: '#333' }
+});
